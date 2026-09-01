@@ -1,0 +1,64 @@
+# Core configuration for the options bot.
+# Sensitive values (API keys) live in .env, not here.
+
+account:
+  # Fallback/manual balance used for position-size caps if the live balance
+  # can't be fetched from the broker. Prefer letting the bot pull the real
+  # balance (broker.use_live_balance: true).
+  balance: 1000
+  use_live_balance: true
+
+  # Never risk more than this fraction of account balance on a single trade.
+  max_risk_pct_per_trade: 0.05
+
+  # Halt all new entries for the rest of the day once realized loss for the
+  # day reaches this fraction of account balance.
+  daily_loss_limit_pct: 0.10
+
+  max_concurrent_positions: 3
+  max_trades_per_day: 8
+
+broker:
+  # paper = Tradier sandbox (fake fills, safe to experiment).
+  # live  = real orders with real money. Only switch this after you have
+  #         watched the bot trade paper for a while and reviewed its logs.
+  mode: paper
+
+trading_window:
+  timezone: America/New_York
+  start: "09:35"
+  end: "15:55"
+  poll_interval_seconds: 60
+
+news_agent:
+  enabled: true
+  vix_symbol: VIX
+  # VIX level at/above which the day is flagged cautious.
+  vix_caution_level: 25
+  # Percent jump in VIX vs prior close that also flags the day cautious.
+  vix_caution_change_pct: 8
+  econ_calendar_enabled: true
+  # High-impact event keywords that flag the day cautious if scheduled today.
+  high_impact_events:
+    - FOMC
+    - CPI
+    - "Non-Farm Payroll"
+    - NFP
+    - PCE
+    - "Fed Chair"
+    - GDP
+  llm_sentiment_enabled: true
+  # How much of a haircut cautious-day trades get. 0.5 = half the contracts,
+  # matching the "half as many contracts on cautious days" behavior.
+  cautious_contract_multiplier: 0.5
+  # Re-run the news/VIX check this often during the day (VIX can move fast).
+  reassess_interval_minutes: 30
+
+strategies:
+  # Filenames (without .py) of strategy plugins to load from src/strategies/.
+  active:
+    - example_momentum
+    - no_wick_candles
+  # Symbols each active strategy is scanned against.
+  underlyings:
+    - SPY
