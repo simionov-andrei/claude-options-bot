@@ -217,6 +217,23 @@ Small samples, few symbols, approximated fills, no lookahead by design but
 still an approximation of history — this is a starting read on the
 entry/exit logic, not a verdict on whether to trade this live.
 
+## Why forward-test results can diverge from backtests
+
+Not just execution latency — several things a backtest can't capture:
+
+- **Bid-ask spread** — market orders fill at ask (buy) / bid (sell), not the
+  mid-price backtests assume. A real round-trip test showed this alone
+  costs money even with zero price movement.
+- **Data source mismatch** — live signals use Tradier's bars; backtests
+  used Yahoo's. Same symbol, slightly different bars, so a signal can fire
+  a bit differently live than it did historically.
+- **Simulated vs real option pricing** — backtests price fills with
+  Black-Scholes, not real quoted premiums (no skew/smile/liquidity).
+- **Regime change** — market behavior going forward isn't guaranteed to
+  resemble the backtested window at all.
+- **API/order latency** — real, but just one factor among these, not the
+  dominant one.
+
 ## Running unattended (24/7 without your computer on)
 
 Not set up yet by design — get it working and validated in paper mode on

@@ -63,27 +63,29 @@ news_agent:
 strategies:
   # Filenames (without .py) of strategy plugins to load from src/strategies/.
   active:
-    - no_wick_candles
     - orb
     - support_resistance
   # Symbols each active strategy is scanned against.
   #
   # Selected from the backtest analysis: symbols that were net-positive
   # (corrected PnL) across all three timeframes tested (5m/60d, 1m/7d,
-  # 60m/1y) for ALL THREE active strategies -- the strictest cross-strategy
-  # consistency bar reached this session, not just a good result for one.
-  # Ranked by combined corrected-PnL magnitude across all 3 strategies x 3
-  # timeframes among that qualifying set.
+  # 60m/1y) for ALL THREE strategies active at the time of selection
+  # (no_wick_candles, orb, support_resistance) -- the strictest
+  # cross-strategy consistency bar reached this session, not just a good
+  # result for one. Ranked by combined corrected-PnL magnitude across those
+  # 3 strategies x 3 timeframes among that qualifying set. WMT (the
+  # weakest of the 5) was dropped when no_wick_candles was removed from
+  # active -- left as-is rather than re-run against just the remaining 2
+  # strategies.
   #
   # Count is rate-limit-driven, not arbitrary: at 10s polling and Tradier's
   # measured 200 req/min sandbox limit, each symbol costs ~24 req/min
   # (4 calls/poll x 6 polls/min) plus up to ~18 req/min shared overhead for
   # concurrent-position exit checks (capped at max_concurrent_positions).
-  # That caps this list at 7 symbols to stay under the limit; 5 here to
-  # leave a 2-symbol margin for error.
+  # That caps this list at 7 symbols to stay under the limit; 4 here
+  # leaves a 3-symbol margin for error.
   underlyings:
     - META
     - MSFT
     - GOOGL
     - AAPL
-    - WMT
