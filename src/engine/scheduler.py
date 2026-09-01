@@ -138,10 +138,20 @@ class Scheduler:
                 if contract is None:
                     continue
 
+                # Capital already spent on other open positions (any strategy)
+                # isn't available for this trade -- without this, every
+                # strategy would size independently against the full account
+                # balance, letting combined exposure exceed it when several
+                # strategies have positions open at once.
+                capital_committed = sum(
+                    p.entry_price * p.contracts * 100 for p in self.order_executor.open_positions
+                )
+                available_balance = max(0.0, account_balance - capital_committed)
+
                 contracts = compute_contracts(
                     base_contracts=intent.base_contracts,
                     day_multiplier=day_assessment.contract_multiplier,
-                    account_balance=account_balance,
+                    account_balance=available_balance,
                     max_risk_pct_per_trade=self.account_cfg["max_risk_pct_per_trade"],
                     option_price_per_contract=contract.mid or contract.ask,
                 )
@@ -149,7 +159,10 @@ class Scheduler:
                     log.info("Signal from %s on %s sized to 0 contracts; skipping", strategy.name, symbol)
                     continue
 
-                position = self.order_executor.enter(intent, contracts, day_assessment.mode, contract=contract)
+                position = self.order_executor.enter(
+                    intent, contracts, day_assessment.mode, contract=contract,
+                    underlying_price=snapshot.underlying_price, account_balance=account_balance,
+                )
                 if position is not None:
                     self.risk_manager.record_trade_opened()
                 break  # one new entry per strategy per poll

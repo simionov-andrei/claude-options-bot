@@ -2,11 +2,13 @@
 # Sensitive values (API keys) live in .env, not here.
 
 account:
-  # Fallback/manual balance used for position-size caps if the live balance
-  # can't be fetched from the broker. Prefer letting the bot pull the real
-  # balance (broker.use_live_balance: true).
+  # Balance used for position-size caps.
   balance: 1000
-  use_live_balance: true
+  # false = always size off the `balance` above, ignoring what's actually in
+  # the broker account. Deliberately set for the sandbox trial: the sandbox
+  # account holds Tradier's default fake $100,000, but sizing should reflect
+  # the user's real ~$1,000 cash, not the sandbox's play money.
+  use_live_balance: false
 
   # Never risk more than this fraction of account balance on a single trade.
   # 0.35 is a deliberately aggressive setting (confirmed choice, not a
@@ -61,8 +63,27 @@ news_agent:
 strategies:
   # Filenames (without .py) of strategy plugins to load from src/strategies/.
   active:
-    - example_momentum
     - no_wick_candles
+    - orb
+    - support_resistance
   # Symbols each active strategy is scanned against.
+  #
+  # Selected from the backtest analysis: symbols that were net-positive
+  # (corrected PnL) across all three timeframes tested (5m/60d, 1m/7d,
+  # 60m/1y) for ALL THREE active strategies -- the strictest cross-strategy
+  # consistency bar reached this session, not just a good result for one.
+  # Ranked by combined corrected-PnL magnitude across all 3 strategies x 3
+  # timeframes among that qualifying set.
+  #
+  # Count is rate-limit-driven, not arbitrary: at 10s polling and Tradier's
+  # measured 200 req/min sandbox limit, each symbol costs ~24 req/min
+  # (4 calls/poll x 6 polls/min) plus up to ~18 req/min shared overhead for
+  # concurrent-position exit checks (capped at max_concurrent_positions).
+  # That caps this list at 7 symbols to stay under the limit; 5 here to
+  # leave a 2-symbol margin for error.
   underlyings:
-    - SPY
+    - META
+    - MSFT
+    - GOOGL
+    - AAPL
+    - WMT

@@ -106,9 +106,30 @@ Configured in `config/settings.yaml` under `account:`:
 
 ## Data
 
-Trades are logged to a local SQLite database at `data/trades.db`. At the end
-of each trading day (or on startup after a day off), the bot prints a
-summary table in the same shape as the reference screenshot:
+Every trade is logged automatically as it happens -- no separate process to
+run, it's built into `OrderExecutor`/`TradeLogger`.
+
+**Per-trade detail**: `data/trades.db` (SQLite), one row per trade, updated
+on open and again on close. Beyond the basics (strategy, symbol, direction,
+contracts, entry/exit premium, pnl, status), each row also records:
+`exit_reason` (stop loss / take profit / strategy exit signal), `notes`
+(the strategy's own description of what triggered the entry, e.g. "support
+bounce @ 500.00 stop_u=498.00 target_u=506.00"), `strike`, `expiration`,
+`delta_at_entry`, `entry_underlying_price` / `exit_underlying_price` (the
+stock's price, not the option's, at each end of the trade), `day_mode`
+(normal/cautious), `account_balance_at_entry`, and `duration_minutes`.
+Query it directly for analysis (`sqlite3 data/trades.db` or pandas'
+`read_sql`).
+
+**Per-day summary**: `data/daily_summary.json`, rewritten fresh after every
+trade close (always current, no drift risk since it's a full recompute
+each time, not an incremental patch). One entry per date: trade count,
+wins, losses, win rate, total win/loss, net, average hold time, and which
+strategies/symbols/day-modes were active that day.
+
+At the end of each trading day (or on startup after a day off), the bot
+also prints a summary table to the console in the same shape as the
+reference screenshot:
 
 ```
 DATE        WINS    LOSSES       TOTAL WIN    TOTAL LOSS           NET

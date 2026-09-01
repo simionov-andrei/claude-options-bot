@@ -74,7 +74,13 @@ class OrderExecutor:
         self.open_positions: list[OpenPosition] = []
 
     def enter(
-        self, intent: TradeIntent, contracts: int, day_mode: str, contract: Optional[OptionContract] = None
+        self,
+        intent: TradeIntent,
+        contracts: int,
+        day_mode: str,
+        contract: Optional[OptionContract] = None,
+        underlying_price: Optional[float] = None,
+        account_balance: Optional[float] = None,
     ) -> Optional[OpenPosition]:
         # Callers that already selected a contract (e.g. the scheduler, which
         # needs one for position sizing before calling enter()) should pass
@@ -111,6 +117,12 @@ class OrderExecutor:
             contracts=contracts,
             entry_price=entry_price,
             day_mode=day_mode,
+            notes=intent.notes,
+            strike=contract.strike,
+            expiration=contract.expiration,
+            delta_at_entry=contract.delta,
+            entry_underlying_price=underlying_price,
+            account_balance_at_entry=account_balance,
         )
 
         position = OpenPosition(
@@ -132,7 +144,7 @@ class OrderExecutor:
         )
         return position
 
-    def close(self, position: OpenPosition, reason: str) -> float:
+    def close(self, position: OpenPosition, reason: str, underlying_price: Optional[float] = None) -> float:
         quote = self.tradier.get_quote(position.option_symbol)
         exit_price = quote.last if quote and quote.last else position.entry_price
 
@@ -150,7 +162,9 @@ class OrderExecutor:
             log.info("[DRY RUN] Would close: SELL %s x%d", position.option_symbol, position.contracts)
 
         pnl = (exit_price - position.entry_price) * position.contracts * 100
-        self.trade_logger.log_close(position.trade_id, exit_price, pnl)
+        self.trade_logger.log_close(
+            position.trade_id, exit_price, pnl, exit_reason=reason, exit_underlying_price=underlying_price,
+        )
         self.open_positions.remove(position)
         log.info(
             "Closed %s (%s): entry %.2f -> exit %.2f, pnl $%.2f",
@@ -189,6 +203,7 @@ class OrderExecutor:
                         reason = "strategy exit signal"
 
             if reason:
-                pnl = self.close(position, reason)
+                snap = snapshot_by_symbol.get(position.underlying_symbol)
+                pnl = self.close(position, reason, underlying_price=snap.underlying_price if snap else None)
                 closed.append((position, pnl))
         return closed
