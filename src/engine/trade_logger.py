@@ -43,8 +43,11 @@ class TradeLogger:
         contracts: int,
         entry_price: float,
         day_mode: str,
+        opened_at: datetime | None = None,
     ) -> int:
-        now = datetime.now()
+        # opened_at lets the backtester stamp real historical timestamps;
+        # live callers omit it and get the current time.
+        now = opened_at or datetime.now()
         cur = self._conn.execute(
             "INSERT INTO trades (trade_date, strategy, underlying, option_symbol, direction, "
             "contracts, entry_price, status, day_mode, opened_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -64,10 +67,10 @@ class TradeLogger:
         self._conn.commit()
         return cur.lastrowid
 
-    def log_close(self, trade_id: int, exit_price: float, pnl: float) -> None:
+    def log_close(self, trade_id: int, exit_price: float, pnl: float, closed_at: datetime | None = None) -> None:
         self._conn.execute(
             "UPDATE trades SET exit_price=?, pnl=?, status='closed', closed_at=? WHERE id=?",
-            (exit_price, pnl, datetime.now().isoformat(), trade_id),
+            (exit_price, pnl, (closed_at or datetime.now()).isoformat(), trade_id),
         )
         self._conn.commit()
 

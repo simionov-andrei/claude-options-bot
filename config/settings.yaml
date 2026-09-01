@@ -9,7 +9,11 @@ account:
   use_live_balance: true
 
   # Never risk more than this fraction of account balance on a single trade.
-  max_risk_pct_per_trade: 0.05
+  # 0.35 is a deliberately aggressive setting (confirmed choice, not a
+  # conservative default) -- on a $1,000 account that's up to $350 at risk
+  # per trade. See README's Backtesting section for how this compares to a
+  # tighter 5% cap.
+  max_risk_pct_per_trade: 0.35
 
   # Halt all new entries for the rest of the day once realized loss for the
   # day reaches this fraction of account balance.
@@ -28,7 +32,7 @@ trading_window:
   timezone: America/New_York
   start: "09:35"
   end: "15:55"
-  poll_interval_seconds: 60
+  poll_interval_seconds: 10
 
 news_agent:
   enabled: true

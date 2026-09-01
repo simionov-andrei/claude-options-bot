@@ -116,6 +116,86 @@ DATE        WINS    LOSSES       TOTAL WIN    TOTAL LOSS           NET
 Aug 03      3       1              $5,408.00     -$300.00      $5,108.00
 ```
 
+## Backtesting
+
+```
+python backtest.py --strategy no_wick_candles --symbol SPY
+python backtest.py --strategy no_wick_candles --symbol QQQ --interval 60m --range 1y --account-balance 1000
+python backtest.py --strategy example_momentum --symbol SPY --range 60d --account-balance 25000
+```
+
+Pulls real historical price bars from Yahoo Finance's public chart endpoint
+(free, no API key -- Tradier has no historical *options* data at all, only
+current chains, so this is the only free source that works here). Yahoo's
+own intraday retention caps how far back each bar interval goes: ~60 days
+for 5-minute/15-minute bars, ~7 days for 1-minute, but a full ~2 years for
+60-minute bars. So a 6-12 month backtest is only possible on hourly bars
+(`--interval 60m`) — see the gamma/granularity caveat below before trusting
+the dollar totals from one of those runs. Runs the strategy through the exact same
+`scan()`/`should_exit()` interface it uses live, applies the cautious-day
+contract-halving (via a VIX-only historical gate -- no economic calendar or
+LLM headline history is available for backtesting), and enforces the same
+daily-loss-limit / max-trades-per-day guardrails as live.
+
+**The one piece that can't be real: option premiums.** There's no free
+historical options-chain data anywhere, so fills are simulated with
+Black-Scholes, using trailing realized volatility (with a fixed markup) as
+an IV proxy — see `src/backtest/options_pricing.py`. That's a legitimate,
+commonly used approximation for backtesting, but it doesn't capture
+volatility skew/smile, bid-ask spread, or liquidity effects the way a real
+historical chain would. Treat backtest output as a read on whether the
+entry/exit *logic* has an edge, not as a precise forecast of live P&L.
+
+Results land in `data/backtest_<strategy>_<symbol>.db` (same schema as live
+trade logs) and print the same daily win/loss/net table, plus win rate,
+profit factor, and max drawdown.
+
+**A note on bar interval and 0-3 DTE options.** Exits (stop-loss/take-profit)
+are only checked once per bar. `no_wick_candles` trades very short-dated
+options (0-3 DTE), which have extreme gamma — on a coarse bar, price can gap
+straight past the intended exit level before the backtest ever checks it,
+turning what should have been an ~80%-of-premium win into a simulated 10x
+one. This is real and it happens at 60-minute bars (needed for a 6-12 month
+window; see below). `backtest.py` now warns whenever the interval is 30
+minutes or coarser, and every run reports a "granularity-corrected PnL"
+alongside the raw total — each trade re-capped at its own stop-loss/
+take-profit bounds, i.e. what a live bot polling every ~60s would actually
+have captured. Treat the corrected number, not the raw one, as the
+realistic read; win rate is unaffected either way since capping only
+changes trade *size*, not outcome.
+
+**What actual runs showed**, `no_wick_candles`, $1,000 simulated account,
+cautious-day gate on:
+
+| Symbol | Bars | Window | Trades | Win rate | Profit factor | Raw PnL | Corrected PnL |
+|---|---|---|---|---|---|---|---|
+| SPY | 5m | 60d (2026-06-08 to 2026-09-01) | 183 | 33.9% | 1.12 | $623.94 | $332.45 |
+| QQQ | 60m | 1y (2025-09-02 to 2026-09-01) | 89 | 38.2% | 1.86 | $3,920.92 | $296.68 |
+| AAPL | 60m | 1y (2025-09-02 to 2026-09-01) | 101 | 36.6% | 2.35 | $3,783.16 | $84.21 |
+
+Three symbols, two very different bar intervals, one consistent story: win
+rate clusters in the **mid-to-high 30s%**, nowhere near the 88-90% claimed
+in the reference video. All three still land net positive once corrected —
+average wins ran larger than average losses across the board, which is a
+real property of the trend-flip exit plus the 2:1 take-profit/stop-loss
+ratio, not an artifact — but the *size* of that edge on the hourly-bar runs
+(QQQ, AAPL) is much smaller than their raw totals suggest, and even the
+5-minute SPY run overstates it somewhat (the corrected total is about half
+the raw one). $1,000 in starting capital did not block trades outright —
+short-dated slightly-OTM premiums were often cheap enough for the 5%-of-
+balance risk cap to still afford 1 contract — but it does mean each trade
+risks only tens of dollars, so don't read the dollar totals as anything
+more than directional.
+
+For comparison, `example_momentum` over the same SPY window and account
+size came out net *negative* (140 trades, 30% win rate, profit factor
+0.81) — confirming the backtester discriminates between strategies rather
+than flattering whatever you point it at.
+
+Small samples, few symbols, approximated fills, no lookahead by design but
+still an approximation of history — this is a starting read on the
+entry/exit logic, not a verdict on whether to trade this live.
+
 ## Running unattended (24/7 without your computer on)
 
 Not set up yet by design — get it working and validated in paper mode on

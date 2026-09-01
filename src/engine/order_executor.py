@@ -30,7 +30,26 @@ class OpenPosition:
     opened_at: datetime
 
 
-def select_contract(tradier: TradierClient, intent: TradeIntent) -> Optional[OptionContract]:
+def _pick_from_chain(chain: list[OptionContract], intent: TradeIntent, expiration_label: str) -> Optional[OptionContract]:
+    option_type = "call" if intent.direction == "long_call" else "put"
+    candidates = [c for c in chain if c.option_type == option_type and c.bid > 0 and c.ask > 0 and c.delta is not None]
+    if not candidates:
+        log.warning("No liquid %s contracts found for %s exp %s", option_type, intent.underlying_symbol, expiration_label)
+        return None
+    return min(candidates, key=lambda c: abs(abs(c.delta) - intent.target_delta))
+
+
+def select_contract(tradier: TradierClient, intent: TradeIntent, snapshot: Optional[MarketSnapshot] = None) -> Optional[OptionContract]:
+    # If the caller already has a snapshot with a fetched chain (the engine builds
+    # one every poll to feed strategy.scan()), and that chain's expiration still
+    # satisfies this intent's DTE window, reuse it instead of re-fetching --
+    # saves 2 Tradier API calls with no loss of freshness (same poll, same data).
+    if snapshot is not None and snapshot.option_chain:
+        chain_expiration = snapshot.option_chain[0].expiration
+        dte = (datetime.strptime(chain_expiration, "%Y-%m-%d").date() - date.today()).days
+        if intent.dte_min <= dte <= intent.dte_max:
+            return _pick_from_chain(snapshot.option_chain, intent, chain_expiration)
+
     expirations = tradier.get_expirations(intent.underlying_symbol)
     if not expirations:
         log.warning("No expirations found for %s", intent.underlying_symbol)
@@ -44,13 +63,7 @@ def select_contract(tradier: TradierClient, intent: TradeIntent) -> Optional[Opt
     target_expiration = in_range[0] if in_range else expirations[0]
 
     chain = tradier.get_option_chain(intent.underlying_symbol, target_expiration)
-    option_type = "call" if intent.direction == "long_call" else "put"
-    candidates = [c for c in chain if c.option_type == option_type and c.bid > 0 and c.ask > 0 and c.delta is not None]
-    if not candidates:
-        log.warning("No liquid %s contracts found for %s exp %s", option_type, intent.underlying_symbol, target_expiration)
-        return None
-
-    return min(candidates, key=lambda c: abs(abs(c.delta) - intent.target_delta))
+    return _pick_from_chain(chain, intent, target_expiration)
 
 
 class OrderExecutor:
@@ -60,8 +73,15 @@ class OrderExecutor:
         self.live_orders = live_orders  # if False, logs intended trades without calling the broker (dry run)
         self.open_positions: list[OpenPosition] = []
 
-    def enter(self, intent: TradeIntent, contracts: int, day_mode: str) -> Optional[OpenPosition]:
-        contract = select_contract(self.tradier, intent)
+    def enter(
+        self, intent: TradeIntent, contracts: int, day_mode: str, contract: Optional[OptionContract] = None
+    ) -> Optional[OpenPosition]:
+        # Callers that already selected a contract (e.g. the scheduler, which
+        # needs one for position sizing before calling enter()) should pass
+        # it here instead of letting this re-select -- same trade, same
+        # market moment, no reason to pay for a second round trip.
+        if contract is None:
+            contract = select_contract(self.tradier, intent)
         if contract is None:
             return None
 

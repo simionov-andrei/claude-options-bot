@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from src.broker.tradier_client import TradierClient
-from src.engine.order_executor import OrderExecutor
+from src.engine.order_executor import OrderExecutor, select_contract
 from src.engine.trade_logger import TradeLogger
 from src.news_agent.caution_gate import CautionGate
 from src.news_agent.models import DayAssessment
@@ -134,9 +134,7 @@ class Scheduler:
                     continue
 
                 account_balance = self._get_account_balance()
-                from src.engine.order_executor import select_contract
-
-                contract = select_contract(self.tradier, intent)
+                contract = select_contract(self.tradier, intent, snapshot)
                 if contract is None:
                     continue
 
@@ -151,7 +149,7 @@ class Scheduler:
                     log.info("Signal from %s on %s sized to 0 contracts; skipping", strategy.name, symbol)
                     continue
 
-                position = self.order_executor.enter(intent, contracts, day_assessment.mode)
+                position = self.order_executor.enter(intent, contracts, day_assessment.mode, contract=contract)
                 if position is not None:
                     self.risk_manager.record_trade_opened()
                 break  # one new entry per strategy per poll
