@@ -1,16 +1,15 @@
 # options-bot
 
 An automated options trading agent: you feed it strategies, it scans the
-market, sizes positions, and places orders through Tradier — with a
+market, sizes positions, and places orders through Tradier, with a
 built-in "news agent" that halves position size on days it judges risky.
 
-**Read this before running it live.** The engine (broker plumbing, risk
+The engine (broker plumbing, risk
 limits, position sizing, the caution gate) is real and functional. The
 included `example_momentum` strategy is a *reference implementation*, not a
-proven edge — it exists so the bot runs out of the box. Whether this makes
+proven edge - it exists so the bot runs out of the box. Whether this makes
 money depends entirely on the strategy you put into it, same as any
-algo-trading system. Start in paper mode and watch it for a while before
-ever flipping `broker.mode: live`.
+algo-trading system.
 
 ## How it fits together
 
@@ -234,19 +233,7 @@ Not just execution latency — several things a backtest can't capture:
 - **API/order latency** — real, but just one factor among these, not the
   dominant one.
 
-## Running unattended (24/7 without your computer on)
-
-Not set up yet by design — get it working and validated in paper mode on
-your own machine first. Once you're ready, this is a good candidate for a
-small always-on VPS running the bot in a Docker container (systemd/cron for
-restarts, log shipping, etc.) — ask and that can be built out next.
-
 ## Disclaimer
 
 This is trading software, not financial advice, and options trading can
-lose money quickly, especially at short expirations. The daily win/loss
-table format mirrored here is a UI convenience, not a claim about what
-returns you should expect — the account performance described in the
-reference video is a third party's unverified screenshot, not a benchmark
-this code is expected to replicate. Test extensively in paper mode, don't
-risk money you can't afford to lose, and understand every strategy you run.
+lose money quickly, especially at short expirations. 
